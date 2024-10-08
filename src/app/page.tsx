@@ -55,8 +55,10 @@ import {
 } from "@/components/ui/select";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -89,6 +91,11 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const priorityOptions = ["Minor", "Low", "Moderate", "Important", "Critical"];
+
   const { toast } = useToast();
 
   const form = useForm<TaskFormValues>({
@@ -100,11 +107,20 @@ export default function Home() {
     },
   });
 
-  const fetchTasks = async (page = 1, search = "") => {
+  const fetchTasks = async (page = 1) => {
     try {
-      const response = await fetch(
-        `/api/tasks?page=${page}&limit=10&search=${search}`
-      );
+      const searchParams = new URLSearchParams({
+        page: page.toString(),
+        limit: "10",
+        search: searchQuery,
+        ...(priorityFilter.length > 0 && {
+          priority: priorityFilter.join(","),
+        }),
+        status: statusFilter,
+      });
+
+      const response = await fetch(`/api/tasks?${searchParams.toString()}`);
+
       const data = await response.json();
       setTasks(data.tasks);
       setTotalPages(data.totalPages);
@@ -121,12 +137,24 @@ export default function Home() {
 
   useEffect(() => {
     if (isAddDialogOpen) {
-      form.reset({ description: "", status: "Todo" });
+      form.reset({ description: "", status: "Todo", priority: "Low" });
     }
 
-    fetchTasks(1, searchQuery);
+    fetchTasks(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, isAddDialogOpen]);
+  }, [searchQuery, isAddDialogOpen, priorityFilter, statusFilter]);
+
+  const handlePriorityFilter = (value: string) => {
+    setPriorityFilter((prev) =>
+      prev.includes(value)
+        ? prev.filter((item) => item !== value)
+        : [...prev, value]
+    );
+  };
+
+  const handleStatusFilter = (value: string) => {
+    setStatusFilter(value);
+  };
 
   async function onSubmit(values: TaskFormValues) {
     try {
@@ -141,7 +169,7 @@ export default function Home() {
         setIsAddDialogOpen(false);
         form.reset();
 
-        fetchTasks(1, searchQuery);
+        fetchTasks(1);
       } else {
         throw new Error("Failed to add task");
       }
@@ -168,7 +196,7 @@ export default function Home() {
           title: "Success",
           description: "Task status updated successfully",
         });
-        fetchTasks(currentPage, searchQuery); // Refresh tasks after update
+        fetchTasks(currentPage); // Refresh tasks after update
       } else {
         throw new Error("Failed to update task status");
       }
@@ -195,7 +223,7 @@ export default function Home() {
         toast({ title: "Success", description: "Task updated successfully" });
         setIsEditDialogOpen(false);
         setEditingTask(null);
-        fetchTasks(currentPage, searchQuery);
+        fetchTasks(currentPage);
       } else {
         throw new Error("Failed to update task");
       }
@@ -222,7 +250,7 @@ export default function Home() {
       });
       if (response.ok) {
         toast({ title: "Success", description: "Task deleted successfully" });
-        fetchTasks(currentPage, searchQuery);
+        fetchTasks(currentPage);
       } else {
         throw new Error("Failed to delete task");
       }
@@ -285,16 +313,52 @@ export default function Home() {
       <div className="container mx-auto py-14 px-2">
         <h1 className="text-xl font-bold mb-2 tracking-widest">Tasks</h1>
         <div className="flex justify-between items-center mb-2">
-          <div className="relative lg:w-96">
-            <Input
-              type="text"
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <div className="flex items-center gap-2">
+            <div className="relative lg:w-96">
+              <Input
+                type="text"
+                placeholder="Search tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-[180px] justify-start">
+                  {priorityFilter.length > 0
+                    ? `${priorityFilter.length} selected`
+                    : "Filter by Priority"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56">
+                <DropdownMenuLabel>Priority</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {priorityOptions.map((priority) => (
+                  <DropdownMenuCheckboxItem
+                    key={priority}
+                    checked={priorityFilter.includes(priority)}
+                    onCheckedChange={() => handlePriorityFilter(priority)}
+                  >
+                    {priority}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Select onValueChange={handleStatusFilter} value={statusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="Todo">Todo</SelectItem>
+                <SelectItem value="Progress">In Progress</SelectItem>
+                <SelectItem value="Done">Done</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>Add Task</Button>
@@ -472,7 +536,7 @@ export default function Home() {
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            onPageChange={(page) => fetchTasks(page, searchQuery)}
+            onPageChange={(page) => fetchTasks(page)}
           />
         </div>
         <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>

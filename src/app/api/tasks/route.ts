@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { Prisma } from "@prisma/client";
+import { Priority, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -7,6 +7,9 @@ export async function GET(request: Request) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "10");
   const search = searchParams.get("search") || "";
+  const priority = searchParams.get("priority") || "";
+  const status = searchParams.get("status") || "all";
+
   const skip = (page - 1) * limit;
 
   let where: Prisma.TaskWhereInput = {};
@@ -15,6 +18,15 @@ export async function GET(request: Request) {
     where = {
       OR: [{ description: { contains: search, mode: "insensitive" } }],
     };
+  }
+
+  if (priority) {
+    const priorityArray = priority.split(",");
+    where.priority = { in: priorityArray as Priority[] };
+  }
+
+  if (status !== "all") {
+    where.status = status as Prisma.EnumStatusFilter;
   }
 
   const [tasks, totalCount] = await Promise.all([
@@ -27,10 +39,13 @@ export async function GET(request: Request) {
     prisma.task.count({ where }),
   ]);
 
+  const totalPages = Math.ceil(totalCount / limit);
+
   return NextResponse.json({
     tasks,
-    totalPages: Math.ceil(totalCount / limit),
     currentPage: page,
+    totalPages,
+    totalCount,
   });
 }
 
