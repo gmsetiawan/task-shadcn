@@ -92,9 +92,10 @@ export default function Home() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   const priorityOptions = ["Minor", "Low", "Moderate", "Important", "Critical"];
+  const statusOptions = ["Todo", "Progress", "Done"];
 
   const { toast } = useToast();
 
@@ -116,7 +117,9 @@ export default function Home() {
         ...(priorityFilter.length > 0 && {
           priority: priorityFilter.join(","),
         }),
-        status: statusFilter,
+        ...(statusFilter.length > 0 && {
+          status: statusFilter.join(","),
+        }),
       });
 
       const response = await fetch(`/api/tasks?${searchParams.toString()}`);
@@ -153,7 +156,11 @@ export default function Home() {
   };
 
   const handleStatusFilter = (value: string) => {
-    setStatusFilter(value);
+    setStatusFilter((prev) =>
+      prev.includes(value)
+        ? prev.filter((item) => item !== value)
+        : [...prev, value]
+    );
   };
 
   async function onSubmit(values: TaskFormValues) {
@@ -346,17 +353,28 @@ export default function Home() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Select onValueChange={handleStatusFilter} value={statusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Todo">Todo</SelectItem>
-                <SelectItem value="Progress">In Progress</SelectItem>
-                <SelectItem value="Done">Done</SelectItem>
-              </SelectContent>
-            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-[180px] justify-start">
+                  {statusFilter.length > 0
+                    ? `${statusFilter.length} selected`
+                    : "Filter by status"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56">
+                <DropdownMenuLabel>Status</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {statusOptions.map((status) => (
+                  <DropdownMenuCheckboxItem
+                    key={status}
+                    checked={statusFilter.includes(status)}
+                    onCheckedChange={() => handleStatusFilter(status)}
+                  >
+                    {status}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
