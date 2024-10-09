@@ -8,7 +8,14 @@ import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 
 import { Input } from "@/components/ui/input";
-import { EllipsisVertical, Eye, Pencil, Search, Trash2 } from "lucide-react";
+import {
+  CalendarIcon,
+  EllipsisVertical,
+  Eye,
+  Pencil,
+  Search,
+  Trash2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +70,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import moment from "moment";
 
 const taskSchema = z.object({
   description: z
@@ -70,6 +85,7 @@ const taskSchema = z.object({
     .min(2, { message: "Description must be at least 2 characters." }),
   status: z.enum(["Todo", "Progress", "Done"]), // Add status field
   priority: z.enum(["Minor", "Low", "Moderate", "Important", "Critical"]),
+  dueDate: z.date().optional(),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -79,6 +95,7 @@ interface Task {
   description: string;
   status: string;
   priority: string;
+  dueDate: Date | null;
 }
 
 export default function Home() {
@@ -117,6 +134,7 @@ export default function Home() {
       description: "",
       status: "Todo", // Default status
       priority: "Low",
+      dueDate: new Date(),
     },
   });
 
@@ -156,16 +174,6 @@ export default function Home() {
     }
   };
 
-  // const fetchPriorityCounts = async () => {
-  //   try {
-  //     const response = await fetch("/api/tasks?page=1&limit=1");
-  //     const data = await response.json();
-  //     setPriorityCounts(data.priorityCounts);
-  //   } catch (error) {
-  //     console.error("Error fetching priority counts:", error);
-  //   }
-  // };
-
   useEffect(() => {
     if (isAddDialogOpen) {
       form.reset({ description: "", status: "Todo", priority: "Low" });
@@ -173,11 +181,13 @@ export default function Home() {
 
     fetchTasks(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, isAddDialogOpen, priorityFilter, statusFilter]);
-
-  // useEffect(() => {
-  //   fetchPriorityCounts();
-  // }, []); // Only fetch priority counts once when component mounts
+  }, [
+    searchQuery,
+    isAddDialogOpen,
+    isEditDialogOpen,
+    priorityFilter,
+    statusFilter,
+  ]);
 
   const handlePriorityFilter = (value: string) => {
     setPriorityFilter((prev) =>
@@ -211,7 +221,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      console.log(response);
+      console.log(values);
       if (response.ok) {
         toast({ title: "Success", description: "Task added successfully" });
         setIsAddDialogOpen(false);
@@ -373,7 +383,7 @@ export default function Home() {
             <h2 className="text-lg font-semibold mb-2">
               Tasks by Priority and Status
             </h2>
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
               {priorityOptions.map((priority) => (
                 <div key={priority} className="flex flex-col">
                   <div className="font-medium flex items-center gap-2">
@@ -400,7 +410,7 @@ export default function Home() {
         </div>
 
         <div className="flex justify-between items-center mb-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative lg:w-96">
               <Input
                 type="text"
@@ -460,17 +470,19 @@ export default function Home() {
               </DropdownMenuContent>
             </DropdownMenu>
             {isFiltering && (
-              <Button
-                variant="destructive"
-                onClick={resetFilters}
-                className="ml-2"
-              >
-                Reset
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="destructive"
+                  onClick={resetFilters}
+                  className="ml-2"
+                >
+                  Reset
+                </Button>
+                <h1 className="text-sm font-semibold tracking-wider">
+                  Results: {totalCount}
+                </h1>
+              </div>
             )}
-            <h1 className="text-sm font-semibold tracking-wider">
-              Total Data: {totalCount}
-            </h1>
           </div>
 
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -578,6 +590,47 @@ export default function Home() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="dueDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Due Date</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-[240px] pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  moment(field.value).format("LLL")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) =>
+                                date < new Date(new Date().setHours(0, 0, 0, 0))
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <Button type="submit">Submit</Button>
                 </form>
               </Form>
@@ -588,6 +641,8 @@ export default function Home() {
           <TableHeader>
             <TableRow>
               <TableHead>Description</TableHead>
+              <TableHead>Due Date</TableHead>
+              <TableHead>Period</TableHead>
               <TableHead>Status</TableHead>
               <TableHead></TableHead>
             </TableRow>
@@ -606,6 +661,8 @@ export default function Home() {
                   />
                   <span className="ml-2">{task.description}</span>
                 </TableCell>
+                <TableCell>{moment(task.dueDate).format("LL")}</TableCell>
+                <TableCell>{moment(task.dueDate).fromNow()}</TableCell>
                 <TableCell>
                   <div className="flex items-center">
                     <div
@@ -749,6 +806,47 @@ export default function Home() {
                           ))}
                         </RadioGroup>
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Due Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                moment(field.value).format("LLL")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date < new Date(new Date().setHours(0, 0, 0, 0))
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -32,6 +32,7 @@ model Task {
   description String
   priority    Priority @default(Minor)
   status      Status   @default(Todo)
+  dueDate     DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
