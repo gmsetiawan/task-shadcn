@@ -85,6 +85,7 @@ export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -93,9 +94,20 @@ export default function Home() {
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [filtersApplied, setFiltersApplied] = useState(false);
+  const [priorityCounts, setPriorityCounts] = useState<Record<string, number>>(
+    {}
+  );
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [totalTaskCount, setTotalTaskCount] = useState(0);
+  const [priorityStatusCounts, setPriorityStatusCounts] = useState<
+    Record<string, Record<string, number>>
+  >({});
 
   const priorityOptions = ["Minor", "Low", "Moderate", "Important", "Critical"];
   const statusOptions = ["Todo", "Progress", "Done"];
+
+  const isFiltering = searchQuery !== "" || filtersApplied;
 
   const { toast } = useToast();
 
@@ -112,7 +124,7 @@ export default function Home() {
     try {
       const searchParams = new URLSearchParams({
         page: page.toString(),
-        limit: "10",
+        limit: "5",
         search: searchQuery,
         ...(priorityFilter.length > 0 && {
           priority: priorityFilter.join(","),
@@ -128,6 +140,12 @@ export default function Home() {
       setTasks(data.tasks);
       setTotalPages(data.totalPages);
       setCurrentPage(data.currentPage);
+      setTotalCount(data.totalCount);
+      setPriorityCounts(data.priorityCounts);
+      setStatusCounts(data.statusCounts);
+      setTotalTaskCount(data.totalTasks);
+      setPriorityStatusCounts(data.priorityStatusCounts);
+      console.log("LOADING TASKS: ", data);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast({
@@ -138,6 +156,16 @@ export default function Home() {
     }
   };
 
+  // const fetchPriorityCounts = async () => {
+  //   try {
+  //     const response = await fetch("/api/tasks?page=1&limit=1");
+  //     const data = await response.json();
+  //     setPriorityCounts(data.priorityCounts);
+  //   } catch (error) {
+  //     console.error("Error fetching priority counts:", error);
+  //   }
+  // };
+
   useEffect(() => {
     if (isAddDialogOpen) {
       form.reset({ description: "", status: "Todo", priority: "Low" });
@@ -147,12 +175,17 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, isAddDialogOpen, priorityFilter, statusFilter]);
 
+  // useEffect(() => {
+  //   fetchPriorityCounts();
+  // }, []); // Only fetch priority counts once when component mounts
+
   const handlePriorityFilter = (value: string) => {
     setPriorityFilter((prev) =>
       prev.includes(value)
         ? prev.filter((item) => item !== value)
         : [...prev, value]
     );
+    setFiltersApplied(true);
   };
 
   const handleStatusFilter = (value: string) => {
@@ -161,6 +194,14 @@ export default function Home() {
         ? prev.filter((item) => item !== value)
         : [...prev, value]
     );
+    setFiltersApplied(true);
+  };
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setPriorityFilter([]);
+    setStatusFilter([]);
+    setFiltersApplied(false);
   };
 
   async function onSubmit(values: TaskFormValues) {
@@ -308,7 +349,7 @@ export default function Home() {
     <div className="relative">
       <div className="absolute top-2 left-2 lg:top-4 lg:left-4">
         <Image
-          className="dark:invert"
+          className="dark:invert w-32 h-6"
           src="/logo/next.svg"
           alt="Next.js logo"
           width={100}
@@ -319,6 +360,45 @@ export default function Home() {
 
       <div className="container mx-auto py-14 px-2">
         <h1 className="text-xl font-bold mb-2 tracking-widest">Tasks</h1>
+
+        <div className="flex flex-col gap-4 mb-4">
+          {/* Total Task Count Card */}
+          <div className="bg-black text-white shadow rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-2">Total Tasks</h2>
+            <p className="text-3xl font-bold">{totalTaskCount}</p>
+          </div>
+
+          {/* Priority and Status Breakdown Card */}
+          <div className="bg-black text-white shadow rounded-lg p-4 ">
+            <h2 className="text-lg font-semibold mb-2">
+              Tasks by Priority and Status
+            </h2>
+            <div className="grid grid-cols-5 gap-4">
+              {priorityOptions.map((priority) => (
+                <div key={priority} className="flex flex-col">
+                  <div className="font-medium flex items-center gap-2">
+                    <div
+                      className="mr-2 h-1 w-3 rounded"
+                      style={{ backgroundColor: colorMappings[priority] }}
+                    />
+                    <span style={{ color: colorMappings[priority] }}>
+                      {priority} {priorityCounts[priority] || 0}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    {statusOptions.map((status) => (
+                      <div key={`${priority}-${status}`}>
+                        {status}:{" "}
+                        {priorityStatusCounts[priority]?.[status] || 0}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
             <div className="relative lg:w-96">
@@ -348,6 +428,9 @@ export default function Home() {
                     checked={priorityFilter.includes(priority)}
                     onCheckedChange={() => handlePriorityFilter(priority)}
                   >
+                    <span className="mr-4">
+                      {priorityCounts[priority] || 0}
+                    </span>
                     {priority}
                   </DropdownMenuCheckboxItem>
                 ))}
@@ -370,11 +453,24 @@ export default function Home() {
                     checked={statusFilter.includes(status)}
                     onCheckedChange={() => handleStatusFilter(status)}
                   >
+                    <span className="mr-4">{statusCounts[status] || 0}</span>
                     {status}
                   </DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {isFiltering && (
+              <Button
+                variant="destructive"
+                onClick={resetFilters}
+                className="ml-2"
+              >
+                Reset
+              </Button>
+            )}
+            <h1 className="text-sm font-semibold tracking-wider">
+              Total Data: {totalCount}
+            </h1>
           </div>
 
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>

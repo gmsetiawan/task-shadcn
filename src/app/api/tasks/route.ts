@@ -30,7 +30,14 @@ export async function GET(request: Request) {
     where.status = { in: statusArray as Status[] };
   }
 
-  const [tasks, totalCount] = await Promise.all([
+  const [
+    tasks,
+    totalCount,
+    totalTasks,
+    priorityCounts,
+    statusCounts,
+    priorityStatusCounts,
+  ] = await Promise.all([
     prisma.task.findMany({
       where,
       skip,
@@ -38,15 +45,54 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     }),
     prisma.task.count({ where }),
+    prisma.task.count(),
+    prisma.task.groupBy({
+      by: ["priority"],
+      _count: true,
+    }),
+    prisma.task.groupBy({
+      by: ["status"],
+      _count: true,
+      where,
+    }),
+    prisma.task.groupBy({
+      by: ["priority", "status"],
+      _count: true,
+    }),
   ]);
 
   const totalPages = Math.ceil(totalCount / limit);
+
+  const priorityCountsObject = priorityCounts.reduce((acc, curr) => {
+    acc[curr.priority] = curr._count;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const statusCountsObject = statusCounts.reduce((acc, curr) => {
+    acc[curr.status] = curr._count;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const priorityStatusCountsObject = priorityStatusCounts.reduce(
+    (acc, curr) => {
+      if (!acc[curr.priority]) {
+        acc[curr.priority] = {};
+      }
+      acc[curr.priority][curr.status] = curr._count;
+      return acc;
+    },
+    {} as Record<string, Record<string, number>>
+  );
 
   return NextResponse.json({
     tasks,
     currentPage: page,
     totalPages,
     totalCount,
+    totalTasks,
+    priorityCounts: priorityCountsObject,
+    statusCounts: statusCountsObject,
+    priorityStatusCounts: priorityStatusCountsObject,
   });
 }
 
